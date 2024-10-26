@@ -67,6 +67,7 @@
         let stations = [];
         let certifiedStations = [];
         let buildingLayer = L.layerGroup().addTo(map);
+        let userMarker = null; // 사용자 위치 마커를 위한 변수
 
         function selectRegion() {
             const selectedRegion = document.getElementById("regions").value;
@@ -130,7 +131,15 @@
             userLon = position.coords.longitude;
             document.getElementById('current-location').innerText = `현재 위치: ${userLat.toFixed(6)}, ${userLon.toFixed(6)}`;
 
+            if (userMarker) {
+                userMarker.setLatLng([userLat, userLon]);
+            } else {
+                userMarker = L.marker([userLat, userLon], { color: "red" }).addTo(map)
+                    .bindPopup("현재 위치").openPopup();
+            }
+
             findNearestStations();
+            fetchNearbyBuildings(userLat, userLon);
         });
 
         function getDistance(lat1, lon1, lat2, lon2) {
@@ -171,6 +180,29 @@
             const listItem = document.createElement('li');
             listItem.textContent = `${stationName} (인증됨)`;
             list.appendChild(listItem);
+        }
+
+        function fetchNearbyBuildings(lat, lon) {
+            buildingLayer.clearLayers();
+
+            const query = `
+                [out:json][timeout:25];
+                (
+                    way["building"](around:300, ${lat}, ${lon});
+                    node(w);
+                );
+                out body;
+            `;
+            fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                data.elements.forEach(element => {
+                    if (element.lat && element.lon) {
+                        L.marker([element.lat, element.lon]).addTo(buildingLayer)
+                            .bindPopup(element.tags.name || "이름 없음");
+                    }
+                });
+            });
         }
     </script>
 </body>
